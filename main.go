@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -21,8 +22,8 @@ var (
 	jar        *cookiejar.Jar
 	client     *http.Client
 
-	startPage = flag.String("start", "", "Start Page")
-	threads   = flag.Int("threads", 10, "Parallels Threads Number")
+	startPage = flag.String("start", "", "Start Page [required]")
+	threads   = flag.Int("threads", 10, "Parallels Threads Number [optional]")
 	help      = flag.Bool("help", false, "Print Help Information")
 )
 
@@ -34,12 +35,9 @@ func main() {
 		flag.PrintDefaults()
 	}
 	flag.Parse()
-	if *help {
+	if *help || *startPage == "" {
 		flag.Usage()
-	}
-	if *startPage == "" {
-		fmt.Println("Need startPage")
-		flag.Usage()
+		os.Exit(1)
 	}
 
 	fmt.Println("Fetch Soccer Player List")
