@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"io/ioutil"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -24,7 +26,7 @@ func main() {
 	current := 0
 	success := 0
 	failure := 0
-	fmt.Println(len(playerList), "Items Got,")
+	fmt.Println("Got", len(playerList), "Items")
 	completeNotice := make(chan bool)
 	completeThreadNotice := make(chan bool)
 	thread := 10
@@ -48,7 +50,6 @@ func main() {
 					compNotice <- false
 					continue
 				}
-				fmt.Printf("%+v", v)
 				compNotice <- true
 			}
 			completeThreadNotice <- true
@@ -73,13 +74,15 @@ func main() {
 		}
 	}
 COMPLETE:
+	d, _ := json.Marshal(playerList)
 	fmt.Println("\nComplete")
+	ioutil.WriteFile("data.json", d, 0644)
 }
 
 // fetchPageList ...
 func fetchPageList(listPage string) error {
 	for {
-		fmt.Println("Fetch Page:", listPage)
+		fmt.Printf("Got %d Items, Fetching Page %s\r", len(playerList), listPage)
 		p, err := fetchPage(listPage)
 		if err != nil {
 			return err
@@ -98,7 +101,6 @@ func fetchPageList(listPage string) error {
 		} else {
 			listPage = rebuildUrl(p.Url, href).String()
 		}
-		break
 		time.Sleep(1 * time.Second)
 	}
 	return nil
@@ -163,7 +165,7 @@ func fetchPlayer(page *goquery.Document, player *SoccerPlayer) error {
 	player.Weight = metaArr[5]
 
 	// stats
-	page.Find("article .player .stats .text-center .label").Each(func(seq int, s *goquery.Selection) {
+	page.Find("article .player .stats .text-center span").Each(func(seq int, s *goquery.Selection) {
 		_val, _ := strconv.Atoi(s.Text())
 		switch seq {
 		case 0:
@@ -230,6 +232,30 @@ func fetchPlayer(page *goquery.Document, player *SoccerPlayer) error {
 		}
 	})
 
-	//
+	player.Properties = make([]PlayerPropertyContainer, 0)
+	// columns
+	columnRe, _ := regexp.Compile("^([0-9]*) *(.+)$")
+	page.Find("article .columns .column div").Each(func(seq int, s *goquery.Selection) {
+		containers := make([]PlayerPropertyContainer, 0)
+		s.Find("h5").Each(func(_seq int, _s *goquery.Selection) {
+			containers = append(containers, PlayerPropertyContainer{Name: _s.Text(), Properties: make([]PlayerProperty, 0)})
+		})
+		s.Find("ul").Each(func(_seq int, _s *goquery.Selection) {
+			//containers[_seq]
+			_s.Find("li").Each(func(_ int, _li *goquery.Selection) {
+				var score int
+				iStr := strings.TrimSpace(_li.Text())
+				c := columnRe.FindStringSubmatch(iStr)
+				name := c[2]
+				if c[1] == "" {
+					score = -1
+				} else {
+					score, _ = strconv.Atoi(c[1])
+				}
+				containers[_seq].Properties = append(containers[_seq].Properties, PlayerProperty{Name: name, Score: score})
+			})
+		})
+		player.Properties = append(player.Properties, containers...)
+	})
 	return nil
 }

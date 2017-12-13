@@ -36,5 +36,5 @@ type PlayerPropertyContainer struct {
 
 type PlayerProperty struct {
 	Name  string `json:"name"`
-	Score string `json:"score"`
+	Score int    `json:"score"`
 }
