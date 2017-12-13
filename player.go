@@ -5,6 +5,7 @@ import (
 )
 
 type SoccerPlayer struct {
+	RefererUrl      string                    `json:"referer"`
 	Url             string                    `json:"url"`
 	Name            string                    `json:"name"`
 	FullName        string                    `json:"fullname"`
@@ -23,7 +24,7 @@ type SoccerPlayer struct {
 	Team            string                    `json:"team"`
 	Country         string                    `json:"country"`
 	TeamPosition    string                    `json:"team_position"`
-	CountryPosition string                    `json:"json:country_position"`
+	CountryPosition string                    `json:"country_position"`
 	TeamNumber      int                       `json:"team_number"`
 	CountryNumber   int                       `json:"country_number"`
 	Properties      []PlayerPropertyContainer `json:"properties"`

@@ -2,11 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"io/ioutil"
+	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -14,11 +18,34 @@ import (
 
 var (
 	playerList = make([]*SoccerPlayer, 0)
+	jar        *cookiejar.Jar
+	client     *http.Client
+
+	startPage = flag.String("start", "", "Start Page")
+	threads   = flag.Int("threads", 10, "Parallels Threads Number")
+	help      = flag.Bool("help", false, "Print Help Information")
 )
 
 func main() {
+	jar, _ = cookiejar.New(nil)
+	client = &http.Client{Jar: jar}
+	flag.Usage = func() {
+		fmt.Println("Usage: sprobot")
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+	if *help {
+		flag.Usage()
+	}
+	if *startPage == "" {
+		fmt.Println("Need startPage")
+		flag.Usage()
+	}
+
 	fmt.Println("Fetch Soccer Player List")
-	err := fetchPageList("https://sofifa.com/players")
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	err := fetchPageList(*startPage)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -29,7 +56,7 @@ func main() {
 	fmt.Println("Got", len(playerList), "Items")
 	completeNotice := make(chan bool)
 	completeThreadNotice := make(chan bool)
-	thread := 10
+	thread := *threads
 	completeThread := 0
 
 	per := total / thread
@@ -41,7 +68,7 @@ func main() {
 		}
 		go func(compNotice chan<- bool, compThreadNotice chan<- bool, players []*SoccerPlayer) {
 			for _, v := range players {
-				doc, err := fetchPage(v.Url)
+				doc, err := fetchPage(v.Url, v.RefererUrl)
 				if err != nil {
 					compNotice <- false
 					continue
@@ -81,13 +108,14 @@ COMPLETE:
 
 // fetchPageList ...
 func fetchPageList(listPage string) error {
+	var referer string
 	for {
 		fmt.Printf("Got %d Items, Fetching Page %s\r", len(playerList), listPage)
-		p, err := fetchPage(listPage)
+		p, err := fetchPage(listPage, referer)
 		if err != nil {
 			return err
 		}
-		if s, err := fetchPlayerList(p); err != nil {
+		if s, err := fetchPlayerList(p, listPage); err != nil {
 			return err
 		} else {
 			playerList = append(playerList, s...)
@@ -99,6 +127,7 @@ func fetchPageList(listPage string) error {
 		if href, exists := np.Attr("href"); !exists {
 			break
 		} else {
+			referer = listPage
 			listPage = rebuildUrl(p.Url, href).String()
 		}
 		time.Sleep(1 * time.Second)
@@ -120,12 +149,29 @@ func rebuildUrl(orig *url.URL, href string) *url.URL {
 }
 
 // fetchPage fetch pages
-func fetchPage(url string) (*goquery.Document, error) {
-	return goquery.NewDocument(url)
+func fetchPage(url string, referer string) (*goquery.Document, error) {
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.84 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9")
+	req.Header.Set("Cache-Control", "max-age=0")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Host", "sofifa.com")
+	if referer != "" {
+		req.Header.Set("Referer", referer)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return goquery.NewDocumentFromResponse(resp)
 }
 
 // fetchPlayerList ...
-func fetchPlayerList(page *goquery.Document) ([]*SoccerPlayer, error) {
+func fetchPlayerList(page *goquery.Document, referer string) ([]*SoccerPlayer, error) {
 	playerList := make([]*SoccerPlayer, 0)
 	page.Find("article #pjax-container table tbody tr").Each(func(no int, item *goquery.Selection) {
 		anchorList := item.Find("td div.col-name").First().Find("a")
@@ -143,6 +189,7 @@ func fetchPlayerList(page *goquery.Document) ([]*SoccerPlayer, error) {
 		player.Properties = make([]PlayerPropertyContainer, 0)
 		player.Name = name
 		player.Url = href
+		player.RefererUrl = referer
 		playerList = append(playerList, player)
 	})
 	return playerList, nil
