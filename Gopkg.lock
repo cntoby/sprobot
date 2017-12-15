@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/360EntSecGroup-Skylar/excelize"
+  packages = ["."]
+  revision = "6d634ca320acca28a84f25888a04c0861548d5ed"
+  version = "v1.2"
+
+[[projects]]
   name = "github.com/PuerkitoBio/goquery"
   packages = ["."]
   revision = "e1271ee34c6a305e38566ecd27ae374944907ee9"
@@ -22,6 +28,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6ffef5149d105304a8519eb7aa7ccae927da2ab2aa94fda1ffd5504d69c13b71"
+  inputs-digest = "944ce6f55b245cd6f0883fe6fe44b88a92e45ba1b9ace376b837a92ced35354b"
   solver-name = "gps-cdcl"
   solver-version = 1
